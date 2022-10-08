@@ -1,6 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
-import * as ReactMarkdown from "react-markdown";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../components/button";
@@ -8,13 +7,10 @@ import { Header } from "../components/header";
 import { SaveModal } from "../components/save_modal";
 import { useStateWithStorage } from "../hooks/use_state_with_storage";
 import { putMemo } from "../indexeddb/memos";
+import ConvertMarkdownWorker from "worker-loader!../worker/convert_markdown_worker";
 
-const Wrapper = styled.div`
-  left: 0;
-  position: fixed;
-  right: 0;
-  top: 3rem;
-`;
+//workerのインスタンス化
+const convertMarkdownWorker = new ConvertMarkdownWorker();
 
 const HeaderArea = styled.div`
   position: fixed;
@@ -23,15 +19,12 @@ const HeaderArea = styled.div`
   left: 0;
 `;
 
-const Preview = styled.div`
-  border-top: 1px solid silver;
-  bottom: 0;
-  overflow-y: scroll;
-  padding: 1rem;
-  position: absolute;
+const Wrapper = styled.div`
+  left: 0;
+  position: fixed;
   right: 0;
-  top: 0;
-  width: 50vw;
+  top: 3rem;
+  bottom: 0;
 `;
 
 const TextArea = styled.textarea`
@@ -46,6 +39,17 @@ const TextArea = styled.textarea`
   width: 50vw;
 `;
 
+const Preview = styled.div`
+  border-top: 1px solid silver;
+  bottom: 0;
+  overflow-y: scroll;
+  padding: 1rem;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 50vw;
+`;
+
 interface Props {
   text: string;
   setText: (text: string) => void;
@@ -55,6 +59,18 @@ export const Editor: React.FC<Props> = (props) => {
   const { text, setText } = props;
   //モーダルを表示するかどうかのフラグをuseStateで管理
   const [showModal, setShowModal] = useState(false);
+  //htmlの文字列をuseStateで管理
+  const [html, setHtml] = useState("");
+  //webworkerから受け取った処理結果（HTML）でhtmlを更新
+  useEffect(() => {
+    convertMarkdownWorker.onmessage = (e) => {
+      setHtml(e.data.html);
+    };
+  }, []);
+
+  useEffect(() => {
+    convertMarkdownWorker.postMessage(text);
+  }, [text]);
   return (
     <>
       <HeaderArea>
@@ -66,7 +82,7 @@ export const Editor: React.FC<Props> = (props) => {
       <Wrapper>
         <TextArea value={text} onChange={(e) => setText(e.target.value)} />
         <Preview>
-          <ReactMarkdown>{text}</ReactMarkdown>
+          <div dangerouslySetInnerHTML={{ __html: html }} />
         </Preview>
       </Wrapper>
       {showModal && (
